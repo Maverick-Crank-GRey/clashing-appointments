@@ -1,6 +1,7 @@
 package mcgrey.app.test.clashing;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Ordering;
 
 import java.security.InvalidParameterException;
 import java.util.*;
@@ -14,9 +15,21 @@ import java.util.*;
  *
  * @author Justin Wetherell <phishman3579@gmail.com>
  */
-public class IntervalTree<O extends Object> {
+public class IntervalTree<O> {
 
     private Interval<O> root = null;
+    private long start;
+    private long end;
+
+    private static final Ordering<IntervalData<?>> byMiddle = new Ordering<IntervalData<?>>() {
+        public int compare(IntervalData<?> left, IntervalData<?> right) {
+            if (left.middle < right.middle)
+                return -1;
+            if (left.middle > right.middle)
+                return 1;
+            return 0;
+        }
+    };
 
     private static final Comparator<IntervalData<?>> startComparator = new Comparator<IntervalData<?>>() {
 
@@ -24,15 +37,17 @@ public class IntervalTree<O extends Object> {
          * {@inheritDoc}
          */
         @Override
-        public int compare(IntervalData<?> arg0, IntervalData<?> arg1) {
+        public int compare(IntervalData<?> left, IntervalData<?> right) {
             // Compare start first
-            if (arg0.start < arg1.start)
+            if (left.start < right.start)
                 return -1;
-            if (arg1.start < arg0.start)
+            if (right.start < left.start)
                 return 1;
             return 0;
         }
     };
+
+    private static final Ordering<IntervalData<?>> byStart = Ordering.from(startComparator);
 
     private static final Comparator<IntervalData<?>> endComparator = new Comparator<IntervalData<?>>() {
 
@@ -40,15 +55,17 @@ public class IntervalTree<O extends Object> {
          * {@inheritDoc}
          */
         @Override
-        public int compare(IntervalData<?> arg0, IntervalData<?> arg1) {
+        public int compare(IntervalData<?> left, IntervalData<?> right) {
             // Compare end first
-            if (arg0.end < arg1.end)
+            if (left.end < right.end)
                 return -1;
-            if (arg1.end < arg0.end)
+            if (right.end < left.end)
                 return 1;
             return 0;
         }
     };
+
+    private static final Ordering<IntervalData<?>> byEnd = Ordering.from(endComparator);
 
     /**
      * Create interval tree from list of IntervalData objects;
@@ -59,21 +76,32 @@ public class IntervalTree<O extends Object> {
         if (intervals.size() <= 0)
             return;
 
-        root = createFromList(intervals);
+        final List<IntervalData<O>> copy = byMiddle.sortedCopy(intervals);
+        root = createFromList(copy);
+        start = byStart.min(intervals).start;
+        end = byEnd.max(intervals).end;
     }
 
-    protected static final <O extends Object> Interval<O> createFromList(List<IntervalData<O>> intervals) {
-        Interval<O> newInterval = new Interval<O>();
+    public long getStart() {
+        return start;
+    }
+
+    public long getEnd() {
+        return end;
+    }
+
+    protected static <O> Interval<O> createFromList(List<IntervalData<O>> intervals) {
+        Interval<O> newInterval = new Interval<>();
         if (intervals.size() == 1) {
             IntervalData<O> middle = intervals.get(0);
-            newInterval.center = ((middle.start + middle.end) / 2);
+            newInterval.center = IntervalData.middle(middle.start, middle.end);
             newInterval.add(middle);
         } else {
             int half = intervals.size() / 2;
             IntervalData<O> middle = intervals.get(half);
-            newInterval.center = ((middle.start + middle.end) / 2);
-            List<IntervalData<O>> leftIntervals = new ArrayList<IntervalData<O>>();
-            List<IntervalData<O>> rightIntervals = new ArrayList<IntervalData<O>>();
+            newInterval.center = IntervalData.middle(middle.start, middle.end);
+            List<IntervalData<O>> leftIntervals = new ArrayList<>();
+            List<IntervalData<O>> rightIntervals = new ArrayList<>();
             for (IntervalData<O> interval : intervals) {
                 if (interval.end < newInterval.center) {
                     leftIntervals.add(interval);
@@ -124,17 +152,17 @@ public class IntervalTree<O extends Object> {
 
     protected static class IntervalTreePrinter {
 
-        public static <O extends Object> String getString(IntervalTree<O> tree) {
+        public static <O> String getString(IntervalTree<O> tree) {
             if (tree.root == null)
                 return "Tree has no nodes.";
             return getString(tree.root, "", true);
         }
 
-        private static <O extends Object> String getString(Interval<O> interval, String prefix, boolean isTail) {
+        private static <O> String getString(Interval<O> interval, String prefix, boolean isTail) {
             StringBuilder builder = new StringBuilder();
 
-            builder.append(prefix + (isTail ? "└── " : "├── ") + interval.toString() + "\n");
-            List<Interval<O>> children = new ArrayList<Interval<O>>();
+            builder.append(prefix).append(isTail ? "└── " : "├── ").append(interval.toString()).append("\n");
+            List<Interval<O>> children = new ArrayList<>();
             if (interval.left != null)
                 children.add(interval.left);
             if (interval.right != null)
@@ -158,7 +186,7 @@ public class IntervalTree<O extends Object> {
         private long center = Long.MIN_VALUE;
         private Interval<O> left = null;
         private Interval<O> right = null;
-        private List<IntervalData<O>> overlap = new ArrayList<IntervalData<O>>(); // startComparator
+        private List<IntervalData<O>> overlap = new ArrayList<>(); // startComparator
 
         private void add(IntervalData<O> data) {
             overlap.add(data);
@@ -187,7 +215,7 @@ public class IntervalTree<O extends Object> {
                 }
             } else if (index >= center) {
                 // overlapEnd is sorted by end point
-                List<IntervalData<O>> overlapEnd = new ArrayList<IntervalData<O>>();
+                List<IntervalData<O>> overlapEnd = new ArrayList<>();
                 Collections.sort(overlapEnd, endComparator);
                 overlapEnd.addAll(overlap);
                 for (IntervalData<O> data : overlapEnd) {
@@ -273,9 +301,10 @@ public class IntervalTree<O extends Object> {
      */
     public static final class IntervalData<O> implements Comparable<IntervalData<O>> {
 
+        private final long middle;
         private long start = Long.MIN_VALUE;
         private long end = Long.MAX_VALUE;
-        private Set<O> set = new TreeSet<O>(); // Sorted
+        private Set<O> set = new TreeSet<>(); // Sorted
 
         /**
          * Interval data using O as it's unique identifier
@@ -285,6 +314,7 @@ public class IntervalTree<O extends Object> {
         public IntervalData(long index, O object) {
             this.start = index;
             this.end = index;
+            this.middle = index;
             this.set.add(object);
         }
 
@@ -296,17 +326,23 @@ public class IntervalTree<O extends Object> {
         public IntervalData(long start, long end, O object) {
             this.start = start;
             this.end = end;
+            this.middle = middle(start, end);
             this.set.add(object);
         }
 
+        static long middle(long start, long end) {
+            return (start + end) / 2;
+        }
+
         /**
-         * Interval data list which should all be unique
+         * Interval data set which should all be unique
          *
-         * @param list of interval data objects
+         * @param set of interval data objects
          */
         public IntervalData(long start, long end, Set<O> set) {
             this.start = start;
             this.end = end;
+            this.middle = middle(start, end);
             this.set = set;
 
             // Make sure they are unique
@@ -355,22 +391,19 @@ public class IntervalTree<O extends Object> {
          * @return deep copy.
          */
         public IntervalData<O> copy() {
-            Set<O> listCopy = new TreeSet<O>();
+            Set<O> listCopy = new TreeSet<>();
             listCopy.addAll(set);
-            return new IntervalData<O>(start, end, listCopy);
+            return new IntervalData<>(start, end, listCopy);
         }
 
         /**
          * Query inside this data object.
          *
-         * @param start of range to query for.
-         * @param end   of range to query for.
+         * @param index of range to query for.
          * @return Data queried for or NULL if it doesn't match the query.
          */
         public IntervalData<O> query(long index) {
-            if (index < this.start || index > this.end) {
-                // Ignore
-            } else {
+            if (index >= this.start && index <= this.end) {
                 return copy();
             }
             return null;
