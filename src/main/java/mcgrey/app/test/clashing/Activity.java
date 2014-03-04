@@ -8,7 +8,7 @@ import org.joda.time.ReadableInterval;
 import java.util.Objects;
 
 /**
- * This is a simple wrapper against {@link Interval} that also contains a name.
+ * This is a simple wrapper against {@link Interval} that also contains a name of the activity.
  */
 public class Activity implements Comparable<Activity> {
     private Interval interval;
@@ -31,6 +31,10 @@ public class Activity implements Comparable<Activity> {
 
     public ReadableInterval getInterval() {
         return interval;
+    }
+
+    public String getName() {
+        return name;
     }
 
     @Override
@@ -87,4 +91,5 @@ public class Activity implements Comparable<Activity> {
 
         return 0;
     }
+
 }

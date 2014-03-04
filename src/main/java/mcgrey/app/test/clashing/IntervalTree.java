@@ -7,11 +7,9 @@ import java.security.InvalidParameterException;
 import java.util.*;
 
 /**
- * An interval tree is an ordered tree data structure to hold intervals.
- * Specifically, it allows one to efficiently find all intervals that overlap
- * with any given interval or point.
- * <p/>
- * http://en.wikipedia.org/wiki/Interval_tree
+ * This class implements an interval tree.
+ * It is based on the class written by Justin Wetherell (phishman3579@gmail.com) -
+ * com.jwetherell.algorithms.data_structures.IntervalTree {@see http://git.io/HkWBbw}
  *
  * @author Justin Wetherell <phishman3579@gmail.com>
  */
